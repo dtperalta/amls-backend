@@ -18,6 +18,19 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str
     APP_ENV: str = "local"
+    SECRET_KEY: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 días
+    HORAS_EXPIRACION_VERIFICACION: float = 0.05
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str
+    SMTP_FROM_NAME: str = "AMLS"
+    SMTP_PASSWORD: str
+    R2_ACCOUNT_ID: str
+    R2_ACCESS_KEY_ID: str
+    R2_SECRET_ACCESS_KEY: str
+    R2_BUCKET_NAME: str
+    R2_PUBLIC_URL: str
 
 
 settings = Settings()

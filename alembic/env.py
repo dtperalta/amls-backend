@@ -13,8 +13,9 @@ from app.database import Base, get_engine_url  # noqa: E402
 
 # Importa aquí los modelos de cada módulo a medida que se agreguen,
 # para que Alembic los detecte en el "autogenerate":
-from app.modules.profile.models import PerfilAprendiz
-# from app.modules.content.models import RecursoEducativo
+from app.modules.profile.models import PerfilAprendiz, HistorialInteraccion
+from app.modules.content.models import RecursoEducativo
+from app.modules.auth.models import CodigoVerificacion, Usuario
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
