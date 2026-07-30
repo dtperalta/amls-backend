@@ -1,26 +1,28 @@
 """
-Envío de correos vía SMTP (Gmail).
+Envío de correos vía la API HTTP de Resend.
 
-Nota de diseño: esta función es intencionalmente síncrona y simple.
-Se ejecuta como BackgroundTask desde los endpoints, para no bloquear
-la respuesta HTTP mientras se envía el correo.
+Se usa HTTP (puerto 443) en vez de SMTP (puertos 25/465/587) a propósito:
+varias plataformas de hosting gratuitas (Render, Vercel, etc.) bloquean
+o dan soporte poco confiable a SMTP saliente, mientras que HTTPS nunca
+se bloquea. Ver ARCHITECTURE.md para el detalle de esta decisión.
 """
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.utils import formataddr
+import httpx
 
 from app.config import settings
 
+RESEND_API_URL = "https://api.resend.com/emails"
+
 
 def enviar_correo(destinatario: str, asunto: str, cuerpo_html: str) -> None:
-    mensaje = MIMEMultipart("alternative")
-    mensaje["Subject"] = asunto
-    mensaje["From"] = formataddr((settings.SMTP_FROM_NAME, settings.SMTP_USER))
-    mensaje["To"] = destinatario
-    mensaje.attach(MIMEText(cuerpo_html, "html"))
-
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-        server.starttls()
-        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-        server.sendmail(settings.SMTP_USER, destinatario, mensaje.as_string())
+    respuesta = httpx.post(
+        RESEND_API_URL,
+        headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+        json={
+            "from": settings.RESEND_FROM_EMAIL,
+            "to": [destinatario],
+            "subject": asunto,
+            "html": cuerpo_html,
+        },
+        timeout=10.0,
+    )
+    respuesta.raise_for_status()
