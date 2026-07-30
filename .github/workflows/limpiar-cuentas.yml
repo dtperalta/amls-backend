@@ -3,6 +3,7 @@ name: Limpiar cuentas no verificadas
 on:
   schedule:
     - cron: "*/10 * * * *"  # cada 10 minutos
+  workflow_dispatch:
 
 jobs:
   limpiar:
