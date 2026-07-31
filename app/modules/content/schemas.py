@@ -20,6 +20,7 @@ class RecursoEducativoOut(RecursoEducativoBase):
     model_config = ConfigDict(from_attributes=True)
     id: str
     url_subtitulos: str | None = None
+    url_lengua_senas: str | None = None
 
 
 class RecursoEducativoUpdate(BaseModel):
