@@ -15,6 +15,7 @@ from app.database import Base, get_engine_url  # noqa: E402
 # para que Alembic los detecte en el "autogenerate":
 from app.modules.profile.models import PerfilAprendiz, HistorialInteraccion
 from app.modules.content.models import RecursoEducativo
+from app.modules.content.quiz_models import PreguntaQuiz, ResultadoQuizDiagnostico
 from app.modules.auth.models import CodigoVerificacion, Usuario
 
 # this is the Alembic Config object, which provides
