@@ -16,6 +16,18 @@ router = APIRouter()
 TIPOS_PERMITIDOS = {"video", "subtitulos", "infografia"}
 
 
+def _con_url_subtitulos(recurso: RecursoEducativo, db: Session) -> RecursoEducativoOut:
+    archivo_subs = (
+        db.query(ArchivoRecurso)
+        .filter_by(recurso_id=recurso.id, tipo_archivo="subtitulos")
+        .order_by(ArchivoRecurso.created_at.desc())
+        .first()
+    )
+    datos = RecursoEducativoOut.model_validate(recurso)
+    datos.url_subtitulos = archivo_subs.url if archivo_subs else None
+    return datos
+
+
 @router.post("/", response_model=RecursoEducativoOut, status_code=201)
 def crear_recurso(datos: RecursoEducativoCreate, db: Session = Depends(get_db)):
     existente = db.query(RecursoEducativo).filter_by(id=datos.id).first()
@@ -31,7 +43,8 @@ def crear_recurso(datos: RecursoEducativoCreate, db: Session = Depends(get_db)):
 
 @router.get("/", response_model=list[RecursoEducativoOut])
 def listar_recursos(db: Session = Depends(get_db)):
-    return db.query(RecursoEducativo).order_by(RecursoEducativo.id).all()
+    recursos = db.query(RecursoEducativo).order_by(RecursoEducativo.id).all()
+    return [_con_url_subtitulos(r, db) for r in recursos]
 
 
 @router.get("/{recurso_id}", response_model=RecursoEducativoOut)
@@ -39,7 +52,7 @@ def obtener_recurso(recurso_id: str, db: Session = Depends(get_db)):
     recurso = db.query(RecursoEducativo).filter_by(id=recurso_id).first()
     if not recurso:
         raise HTTPException(404, "Recurso no encontrado")
-    return recurso
+    return _con_url_subtitulos(recurso, db)
 
 
 @router.put("/{recurso_id}", response_model=RecursoEducativoOut)
