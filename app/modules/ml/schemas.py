@@ -2,11 +2,10 @@ from pydantic import BaseModel
 
 
 class RecomendacionInput(BaseModel):
-    grado_perdida_auditiva: str
-    preferencia_comunicativa: str
     nivel_lectura: str
+    porcentaje_acierto_quiz: float
+    cantidad_lecciones_dominadas: int
 
 
 class RecomendacionOutput(BaseModel):
     nivel_dificultad_recomendado: str
-    es_placeholder: bool = True

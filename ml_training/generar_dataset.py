@@ -1,72 +1,73 @@
 """
-Genera un dataset sintético para el ML Recommender Service.
+Genera el dataset sintético (v2) para el ML Recommender de ruta/contenido.
 
-El patrón que se le enseña al modelo:
-- El factor DOMINANTE es el nivel de lectura del estudiante.
-- El grado de pérdida auditiva tiene una influencia SECUNDARIA: a mayor
-  grado, se recomienda un nivel ligeramente más conservador (más carga
-  cognitiva al depender más de canales visuales).
-- La preferencia comunicativa NO tiene relación real con la dificultad
-  recomendada — se incluye como feature de todas formas, y el ruido
-  aleatorio garantiza que el árbol no le asigne importancia artificial.
-- Se agrega ruido aleatorio (10% de las filas) para simular variabilidad
-  real y evitar que el patrón sea perfectamente determinista (un dataset
-  sin ruido en absoluto no es realista y no sirve para practicar contra
-  el sobreajuste, tema de la Lección 5 del propio curso).
+Cambio respecto a la v1: la señal DOMINANTE ahora es el desempeño real
+demostrado en el quiz diagnóstico (porcentaje de acierto, cantidad de
+lecciones ya dominadas) — no la autopercepción declarada en el perfil.
+El nivel de lectura se conserva como un ajuste MENOR (afecta cómo se
+presenta el contenido, no si la persona "sabe" del tema).
+
+Esto resuelve una inconsistencia real detectada en producción: el
+modelo v1 podía recomendar "Avanzada" a alguien que acertó solo 1 de
+12 preguntas del quiz, porque se basaba únicamente en su perfil
+declarado, sin conocer su desempeño real.
 """
 import numpy as np
 import pandas as pd
 
 np.random.seed(42)
 
-GRADOS = ["Leve", "Moderada", "Profunda"]
+N_MUESTRAS = 800
+
 NIVELES_LECTURA = ["Básico", "Intermedio", "Avanzado"]
-PREFERENCIAS = ["Subtítulos", "Lengua de Señas", "Mixto"]
-DIFICULTADES = ["Leve", "Moderada", "Avanzada"]
 
-N_MUESTRAS = 600
+porcentaje_acierto_quiz = np.random.uniform(0, 100, N_MUESTRAS)
 
+# cantidad_lecciones_dominadas correlaciona con el % de acierto, pero con
+# ruido real: acertar 1 de 2 preguntas en varias lecciones da buen %
+# pero cero lecciones "dominadas" (se necesitan las 2 correctas de esa
+# lección para contar como dominada) — un caso real, no un atajo.
+base_dominadas = (porcentaje_acierto_quiz / 100) * 6
+ruido_dominadas = np.random.normal(0, 1.2, N_MUESTRAS)
+cantidad_lecciones_dominadas = np.clip(
+    np.round(base_dominadas + ruido_dominadas), 0, 6
+).astype(int)
 
-def recomendar_dificultad_base(nivel_lectura: str, grado_perdida: str) -> str:
-    """Regla subyacente (con la que se genera el dataset "verdadero")."""
-    puntaje = {"Básico": 0, "Intermedio": 1, "Avanzado": 2}[nivel_lectura]
+nivel_lectura = np.random.choice(NIVELES_LECTURA, N_MUESTRAS)
+ajuste_lectura = np.select(
+    [nivel_lectura == "Básico", nivel_lectura == "Intermedio", nivel_lectura == "Avanzado"],
+    [-8, 0, 8],
+)
 
-    # Influencia secundaria: mayor grado de pérdida -> ligero ajuste conservador
-    ajuste = {"Leve": 0, "Moderada": 0, "Profunda": -1}[grado_perdida]
+# Puntaje combinado: el quiz pesa mucho más que el nivel de lectura
+puntaje_combinado = (
+    porcentaje_acierto_quiz * 0.7
+    + (cantidad_lecciones_dominadas / 6 * 100) * 0.25
+    + ajuste_lectura * 0.05
+)
 
-    puntaje_final = max(0, min(2, puntaje + (1 if ajuste == 0 else 0) - (1 if ajuste == -1 and puntaje > 0 else 0)))
+nivel_dificultad = np.select(
+    [puntaje_combinado >= 65, puntaje_combinado >= 35],
+    ["Avanzada", "Moderada"],
+    default="Leve",
+)
 
-    # Regla simplificada y explícita (evita índices negativos confusos)
-    if nivel_lectura == "Básico":
-        return "Leve"
-    if nivel_lectura == "Intermedio":
-        return "Leve" if grado_perdida == "Profunda" else "Moderada"
-    # Avanzado
-    return "Moderada" if grado_perdida == "Profunda" else "Avanzada"
+df = pd.DataFrame(
+    {
+        "nivel_lectura": nivel_lectura,
+        "porcentaje_acierto_quiz": porcentaje_acierto_quiz,
+        "cantidad_lecciones_dominadas": cantidad_lecciones_dominadas,
+        "nivel_dificultad_recomendado": nivel_dificultad,
+    }
+)
 
+# 8% de ruido en la etiqueta, para evitar un patrón perfectamente separable
+mascara_ruido = np.random.rand(N_MUESTRAS) < 0.08
+opciones = np.array(["Leve", "Moderada", "Avanzada"])
+df.loc[mascara_ruido, "nivel_dificultad_recomendado"] = np.random.choice(
+    opciones, mascara_ruido.sum()
+)
 
-filas = []
-for _ in range(N_MUESTRAS):
-    grado = np.random.choice(GRADOS)
-    nivel_lectura = np.random.choice(NIVELES_LECTURA)
-    preferencia = np.random.choice(PREFERENCIAS)  # sin relación real con la etiqueta
-
-    dificultad = recomendar_dificultad_base(nivel_lectura, grado)
-
-    # 10% de ruido: en esas filas, se asigna una dificultad aleatoria distinta
-    if np.random.rand() < 0.10:
-        dificultad = np.random.choice(DIFICULTADES)
-
-    filas.append(
-        {
-            "grado_perdida_auditiva": grado,
-            "nivel_lectura": nivel_lectura,
-            "preferencia_comunicativa": preferencia,
-            "nivel_dificultad_recomendado": dificultad,
-        }
-    )
-
-df = pd.DataFrame(filas)
-df.to_csv("dataset_sintetico.csv", index=False)
+df.to_csv("dataset_sintetico_v2.csv", index=False)
 print(f"Dataset generado: {len(df)} filas")
 print(df["nivel_dificultad_recomendado"].value_counts())

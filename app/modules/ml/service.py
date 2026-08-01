@@ -1,28 +1,34 @@
 """
-Lógica de recomendación del ML Recommender Service.
+Lógica de recomendación del ML Recommender Service (v2).
 
-ESTADO ACTUAL: placeholder con reglas simples (if/else), NO es el
-modelo de Machine Learning real todavía. Eso corresponde al Sprint 5
-(dataset sintético + entrenamiento con Scikit-learn + export a
-formato usable), según el plan de trabajo de la propuesta.
-
-Esta función mantiene el mismo contrato (mismos parámetros de entrada,
-mismo tipo de salida) que tendrá la versión real. Cuando se entrene el
-modelo en el Sprint 5, solo se reemplaza el cuerpo de esta función —
-el router y todo lo que lo consume (incluida la app Android) no
-necesitan cambiar.
+A diferencia de la v1 (basada solo en perfil autodeclarado), este
+modelo usa el desempeño REAL del estudiante en el quiz diagnóstico
+como señal dominante, resolviendo la inconsistencia detectada entre
+la recomendación y el resultado real del quiz.
 """
+from pathlib import Path
+
+import joblib
+import pandas as pd
+
+_RUTA_MODELO = Path(__file__).parent / "modelo_recomendador.joblib"
+_datos_modelo = joblib.load(_RUTA_MODELO)
+
+_modelo = _datos_modelo["modelo"]
+_encoders = _datos_modelo["encoders"]
 
 
 def recomendar_nivel_dificultad(
-    grado_perdida_auditiva: str,
-    preferencia_comunicativa: str,
     nivel_lectura: str,
+    porcentaje_acierto_quiz: float,
+    cantidad_lecciones_dominadas: int,
 ) -> str:
-    """Regla temporal: recomienda dificultad según nivel de lectura."""
-    reglas = {
-        "Básico": "Leve",
-        "Intermedio": "Moderada",
-        "Avanzado": "Avanzada",
-    }
-    return reglas.get(nivel_lectura, "Leve")
+    fila = pd.DataFrame(
+        {
+            "nivel_lectura": [_encoders["nivel_lectura"].transform([nivel_lectura])[0]],
+            "porcentaje_acierto_quiz": [porcentaje_acierto_quiz],
+            "cantidad_lecciones_dominadas": [cantidad_lecciones_dominadas],
+        }
+    )
+    prediccion = _modelo.predict(fila)[0]
+    return _encoders["nivel_dificultad_recomendado"].inverse_transform([prediccion])[0]
