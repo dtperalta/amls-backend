@@ -19,8 +19,10 @@ scheduler = BackgroundScheduler()
 async def lifespan(app: FastAPI):
     scheduler.add_job(eliminar_cuentas_no_verificadas, "interval", hours=12)
     scheduler.start()
+    print(f"[scheduler] Iniciado. Próxima ejecución: {scheduler.get_jobs()[0].next_run_time}")
     yield
     scheduler.shutdown()
+    print("[scheduler] Detenido.")
 
 
 app = FastAPI(
@@ -55,3 +57,14 @@ app.include_router(profile_router, prefix="/profile", tags=["Perfil"])
 app.include_router(content_router, prefix="/content", tags=["Contenido"])
 app.include_router(quiz_router, prefix="/quiz", tags=["Quiz Diagnóstico"])
 app.include_router(ml_router, prefix="/ml", tags=["ML Recommender"])
+
+
+@app.get("/internal/scheduler-status", tags=["Internal"])
+def estado_scheduler():
+    trabajos = scheduler.get_jobs()
+    if not trabajos:
+        return {"activo": False}
+    return {
+        "activo": True,
+        "proxima_ejecucion": trabajos[0].next_run_time.isoformat() if trabajos[0].next_run_time else None,
+    }
